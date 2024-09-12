@@ -1,0 +1,23 @@
+rule all:
+    input:
+        "final_report.html"
+
+rule PY_data_collection:
+    conda:
+        "envs/python_env.yaml"
+    output:
+        "workflow/data/bills_data_final.csv"
+    script:
+        "scripts/PY_data_collection.py"
+
+rule generate_report:
+    conda:
+        "envs/r_env.yaml"
+    input:
+        "workflow/scripts/final_report.Rmd",
+    output:
+        "final_report.html"
+    shell:
+        """
+        Rscript -e "rmarkdown::render('{input}', output_file=file.path(dirname(dirname(getwd())), '{output}'))"
+        """

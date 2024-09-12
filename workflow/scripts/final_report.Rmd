@@ -1,0 +1,480 @@
+---
+title: "Final Report - Analyzing Cosponsorship"
+author: "Lorenzo Maria Casale & Matteo Machiorlatti"
+date: "15/09/2024"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+# Load required libraries
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(lmtest)
+library(ivreg)
+library(knitr)
+library(kableExtra)
+library(tidyr)
+library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(sandwich)
+library(stargazer)
+library(rmarkdown)
+library(sandwich)  # For robust standard errors
+library(lmtest)    # For coeftest function
+```
+
+
+In this research report we quickly show the determinants of the cosponsorship at bills level.
+
+We firstly scraped the data related to the bills presented to the House of Congress in the 2010s.
+
+For each bill, we collect the ID of the Congress they were introduced, some bill-specific information, (i.e. the bill's url, the title of the proposal, the committee interested by the bill - e.g. Energy or Housing - and the status - e.g. Passed House, or Law), the sponsor, namely the person who introduced the bill, her party, her state of election, as well as the district of election and, then, we also collected information on cosponsors, namely who publicly support the law introduced, and apart from gathering the number of co-sponsors, we also observe how many of those are sharing the party affiliation and/or the state of origin. 
+
+```{r dataprep, echo=FALSE, message=FALSE, warning=FALSE}
+
+#input_file <- file.path(dirname(getwd()), "data", snakemake@input[[2]])
+input_file <- file.path(dirname(getwd()), "data", "bills_data_final.csv")
+output_file <- file.path(dirname(getwd()), "results", "final_report.html")
+
+## Appending all files
+bills_data <- read.csv(input_file)
+
+## Adding 'year' column based on 'congress_id'
+bills_data <- bills_data %>%
+  mutate(year = case_when(
+    congress_id == 112 ~ "2011-2012",
+    congress_id == 113 ~ "2013-2014",
+    congress_id == 114 ~ "2015-2016",
+    congress_id == 115 ~ "2017-2018",
+    congress_id == 116 ~ "2019-2020"
+  ))
+
+## Creating Census Region
+W <- c("AK", "AZ", "CA", "CO", "HI", "ID", "MT", "NV", "NM", "OR", "UT", "WA", "WY")
+S <- c("AL", "AR", "DE", "FL", "GA", "KY", "LA", "MD", "MS", "NC", "OK", "SC", "TN", "TX", "VA", "WV")
+MW <- c("IL", "IN", "IA", "KS", "MI", "MN", "MO", "NE", "ND", "OH", "SD", "WI")
+NE <- c("CT", "ME", "MA", "NH", "NJ", "NY", "PA", "RI", "VT")
+
+# Combine lists into a named list
+All <- list(W = W, S = S, MW = MW, NE = NE)
+Reg <- c("West", "South", "Midwest", "Northeast")
+
+# Assume bills_data is your data frame with a column `sponsor_state`
+bills_data$sponsor_region <- NA
+
+# Update the region based on state abbreviations
+for (reg in names(All)) {
+  bills_data$sponsor_region[bills_data$sponsor_state %in% All[[reg]]] <- reg
+}
+
+# Set any remaining NA values to "Others"
+bills_data$sponsor_region[is.na(bills_data$sponsor_region)] <- "Others"
+
+# Create is_law variable
+bills_data$is_law <- ifelse(bills_data$status %in% c("Became Law", "Became Private Law"), 1, 0)
+
+# Create is_passed variable
+bills_data$is_passed <- ifelse(bills_data$status %in% c("Became Law", "Became Private Law", "Vetoed by President", "Failed to pass over veto", "Resolving Differences", "Passed House", "Passed Senate"), 1, 0)
+```
+
+# Descriptive Statistics
+
+Table 1 - Descriptive Statistics of Bill Data by Sponsor Party - shows the number of bills by sponsor's party. Because of the negligible number of bills sponsored by independents (I) and liberals (L), we will focus only on Democrats (D) and Republicans (R)
+
+```{r datadescr0, echo=FALSE, message=FALSE, warning=FALSE}
+## Descriptive statistics with number of bills by sponsor_party
+descriptive_stats <- bills_data %>% 
+  group_by(sponsor_party) %>%
+  summarise(
+    `N. Bills` = n()  # Count of bills by sponsor_party
+  )
+
+descriptive_stats %>%
+  kbl(caption = "Descriptive Statistics of Bill Data by Sponsor Party", digits = 3) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), 
+                full_width = FALSE) %>%
+  add_header_above(c(" " = 1, "Descriptive Stats" = 1)) %>%
+  row_spec(0, bold = TRUE, extra_css = "border-bottom: 2px solid;")
+
+
+bills_data <- bills_data %>%
+  filter(sponsor_party %in% c("D", "R"))
+
+bills_data <- bills_data %>%
+  mutate(majority = case_when(
+    sponsor_party == "R" & congress_id %in% c(112, 113, 114, 115) ~ 1,
+    sponsor_party == "D" & congress_id == 116 ~ 1,
+    TRUE ~ 0
+  ))
+```
+
+
+Table 2. - Descriptive Statistics of Bill Data - presents summary statistics for the average number of cosponsors (Avg. N. Cosponsor) across all bills, as well as the average number of cosponsors from the same party, same state, and those belonging to the same party and state.
+
+We can immediately observe how among the co-sponsors the vast majority share, as natural, the party with the co-sponsor itself.
+
+On average 16 members play as bill's cosponsors, yet only 1.4 of those come from the same party and the same state, where the latter is clearly the limiting factor in the analysis.
+
+
+```{r datadescr1, echo=FALSE, message=FALSE, warning=FALSE}
+## Descriptive statistics all sample
+descriptive_stats <- bills_data %>% 
+  summarise(
+    `Avg. N. Cosponsor` = mean(n_cosponsor, na.rm = TRUE),
+    `Avg. N. Same Party Cosp.` = mean(same_party, na.rm = TRUE),
+    `Avg. N. Same State Cosp.` = mean(same_state, na.rm = TRUE),
+    `Avg. N. Same (Party x State) Cosp.` = mean(same_party_state, na.rm = TRUE)
+  )
+descriptive_stats %>%
+  kbl(caption = "Descriptive Statistics of Bill Data", digits = 3) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), 
+                full_width = FALSE) %>%
+  add_header_above(c(" " = 1, "Descriptive Stats" = 3)) %>%
+  row_spec(0, bold = TRUE, extra_css = "border-bottom: 2px solid;")
+```
+
+
+In Table 2 - Probability of Each Bill Status - we show that only a small portion becomes a law - slightly more than 3%. In general, however, 10% of the bills manages to surpass the first obstacle, namely the Congress' House. The rest is just merely introduced and no further steps are made.
+
+```{r datadescr1b, echo=FALSE, message=FALSE, warning=FALSE}
+
+## Descriptive statistics all sample - Passing Probability
+status_probs <- bills_data %>%
+  group_by(status) %>%
+  summarise(`Probability` = n() / nrow(bills_data)) %>%
+  mutate(status = factor(status, levels = c("Became Law", "Became Private Law", "Vetoed by President", 
+                                            "Failed to pass over veto", "Resolving Differences", 
+                                            "Passed House", "Passed Senate", "Failed House", "Introduced"))) %>%
+  arrange(status)  # Arrange based on the custom factor order
+
+status_probs %>%
+  kbl(caption = "Probability of Each Bill Status", digits = 3) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), 
+                full_width = FALSE) %>%
+  row_spec(0, bold = TRUE, extra_css = "border-bottom: 2px solid;")
+```
+
+Down below, in Table 3 - Descriptive Statistics of Bill Data by Congress and Year - and Table 4 - Probability of Each Bill Status by Congress and Year - we replicate what we did in the 2 previous tables, but we show what happens when we split the data over congresses.
+
+In general, we observe that it appears that the ratio of law passed - i.e. those which either became or law or managed to pass the House vote - is the highest in Congress 115, despite the number of co-sponsor is slightly smaller than almost all the other congresses available.
+
+```{r datadescr2, echo=FALSE, message=FALSE, warning=FALSE}
+
+## Descriptive statistics by congress_id
+descriptive_stats_by_congress <- bills_data %>% 
+  group_by(congress_id, year) %>%
+  summarise(
+    `Avg. N. Cosponsor` = mean(n_cosponsor, na.rm = TRUE),
+    `Avg. N. Same Party Cosp.` = mean(same_party, na.rm = TRUE),
+    `Avg. N. Same State Cosp.` = mean(same_state, na.rm = TRUE),
+    `Avg. N. Same (Party x State) Cosp.` = mean(same_party_state, na.rm = TRUE)
+  )
+
+descriptive_stats_by_congress %>%
+  kbl(caption = "Descriptive Statistics of Bill Data by Congress and Year", digits = 3) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), 
+                full_width = FALSE)
+```
+
+```{r datadescr3, echo=FALSE, message=FALSE, warning=FALSE}
+
+## Descriptive statistics by congress_id - Passing Probability
+
+status_probs_by_congress <- bills_data %>%
+  group_by(congress_id, year, status) %>%
+  summarise(count = n(), .groups = 'drop') %>%
+  group_by(congress_id, year) %>%
+  mutate(total = sum(count), 
+         `Probability` = count / total) %>%
+  filter(status %in% c("Became Law", "Passed House", "Passed Senate", "Failed House", "Introduced")) %>%
+  select(-count, -total)  # Remove intermediate columns if you don't need them
+
+
+status_probs_wide <- status_probs_by_congress %>%
+  unite("congress_year", congress_id, year, sep = " (") %>%
+  mutate(congress_year = paste0(congress_year, ")")) %>%
+  pivot_wider(
+    names_from = congress_year, 
+    values_from = Probability,
+    values_fill = 0  # Fill any missing combinations with 0
+  ) %>%
+  arrange(match(status, c("Became Law", "Passed House", "Passed Senate", "Failed House", "Introduced")))
+
+status_probs_wide %>%
+  kbl(caption = "Probability of Each Bill Status by Congress and Year", digits = 3) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), 
+                full_width = FALSE)
+```
+
+
+Table 5 - Probability of Bills Becoming Law by Party and Congress - is definetely more interesting, as it shows the probability of a bill becoming a law split by party. It appears that when leading - in bold - Republicans managed to exert their power more than Democrats. We can see, indeed, the big difference both with respect to their counterpart within congress and with respect to when they were the opposing force. On the other hand, when Democrats were leading the House of Congress, there was not a clear difference with respect to when they were the trailing force.
+
+Because of the small  of Independents in 
+
+```{r datadescr4, echo=FALSE, message=FALSE, warning=FALSE}
+
+## Calculate the probability of a bill becoming law by party and congress
+
+prob_by_party_congress <- bills_data %>%
+  filter(sponsor_party %in% c("R", "D")) %>%
+  group_by(congress_id, year, sponsor_party) %>%
+  summarise(`Prob. Becoming Law` = mean(status == "Became Law", na.rm = TRUE), .groups = 'drop') %>%
+  pivot_wider(names_from = sponsor_party, values_from = `Prob. Becoming Law`, values_fill = list(`Prob. Becoming Law` = 0)) %>%
+  rename(Republican = R, Democrat = D)
+
+prob_by_party_congress <- prob_by_party_congress %>%
+  mutate(
+    Republican = ifelse(congress_id != 116, cell_spec(round(Republican, 3), bold = TRUE), round(Republican, 3)),
+    Democrat = ifelse(congress_id == 116, cell_spec(round(Democrat, 3), bold = TRUE), round(Democrat, 3))
+  )
+
+prob_by_party_congress %>%
+  kbl(escape = FALSE, caption = "Probability of Bills Becoming Law by Party and Congress") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), 
+                full_width = FALSE) %>%
+  add_header_above(c(" " = 2, "Probability of Becoming Law" = 2)) %>%
+  row_spec(0, bold = TRUE, extra_css = "border-bottom: 2px solid;")
+```
+
+
+Here, in Figure 1 - Probability of Bills Becoming Law by State -, we show that, apart some peaks when Idaho and Mississippi representatives are proposing their bills, there are no clear differences among the states. This appears to be even truer when we compare states from the same Census Region. Each Census is recognizable because of each state's border. In yellow, there are the west states, in red the midwest, in green the south states, and finally in violet the north-east states.
+
+
+```{r datadescr5, echo=FALSE, message=FALSE, warning=FALSE}
+
+##  Load spatial data for US states
+us_states <- rnaturalearth::ne_states(country = "United States of America", returnclass = "sf")
+
+## Ensure state abbreviations in the bills_data match those in the spatial data
+us_states <- us_states %>%
+  mutate(sponsor_state = state.abb[match(name, state.name)]) %>%
+  select(sponsor_state, geometry)
+
+## Merge the state map with bills data
+state_map <- us_states %>%
+  left_join(bills_data %>%
+              group_by(sponsor_state) %>%
+              summarise(`Prob. Becoming Law` = mean(status == "Became Law", na.rm = TRUE), 
+                        sponsor_region = first(sponsor_region)),
+            by = "sponsor_state")
+
+## Remove Alaska (AK) and Hawaii (HI) from the spatial data and bills data
+state_map <- state_map %>%
+  filter(!sponsor_state %in% c("AK", "HI"))
+
+## Define the darkest color for each region
+region_colors <- c(
+  "W" = "#FFC500",   # Dark Orange for West
+  "S" = "#009900",  # Dark Green for South
+  "MW" = "#FF0000", # Dark Brown for Midwest
+  "NE" = "#9999FF" # Dark Cyan for Northeast
+)
+
+## Add border colors to the data
+state_map <- state_map %>%
+  mutate(border_color = region_colors[sponsor_region])
+
+## Create the map
+ggplot(data = state_map) +
+  geom_sf(aes(fill = `Prob. Becoming Law`, color = border_color), lwd = 1) +  # Increased border size
+  scale_fill_gradientn(colors = c("#E0FFFF", "#36454F"), name = "Probability", labels = scales::number_format(accuracy = 0.01)
+) + # Apply the gradient scale for probability
+  scale_color_identity() +  # Use the colors defined in the data
+  theme_minimal() +
+  labs(title = "Probability of Bills Becoming Law by State",
+       subtitle = "Darker colors indicate higher probabilities") +
+  theme(legend.position = "bottom",
+        panel.grid = element_blank(),      # Remove gridlines
+        axis.text = element_blank(),       # Remove axis text
+        axis.title = element_blank(),      # Remove axis titles
+        axis.ticks = element_blank())      # Remove axis ticks
+```
+
+# Graphical Determinants of Cosporship
+
+This section briefly describes how did cosponsorship vary over time.
+
+From Figure 2 - Variation of Cosponsorship by Congress - we can observe that the values described above are derived by the frequent outliers observed in each of the congresses analyzed.
+
+Because the 5 boxplots, containing data from 25th to 75th percentile, are generally close to 0, in the following graphs we show how mean and median varies, both when excluding and including the bills with 0 cosponsors. Overall, as explained, in this setting, the median appears more informative than the average. Then, the effective number of co-sponsors is around 4.
+
+```{r graphs1, echo=FALSE, message=FALSE, warning=FALSE}
+# Define relative paths for input and output files
+## Create a box plot to show the distribution of cosponsors per bill over time
+ggplot(bills_data, aes(x = as.factor(congress_id), y = n_cosponsor)) +
+  geom_boxplot(aes(fill = as.factor(congress_id))) +
+  labs(
+    title = "Variation of Cosponsorship by Congress",
+    x = "Congress",
+    y = "Number of Cosponsors",
+    fill = "Congress"
+  ) +
+  theme_minimal()
+```
+
+
+```{r graphs2, echo=FALSE, message=FALSE, warning=FALSE}
+
+## Line plot showing the average number of cosponsors over time
+# Calculate the average number of cosponsors over time (including zeros)
+avg_cosponsors_per_year <- bills_data %>%
+  group_by(year) %>%
+  summarise(avg_cosponsors = mean(n_cosponsor, na.rm = TRUE))
+
+# Calculate the average number of cosponsors over time (excluding zeros)
+avg_cosponsors_per_year_no_zeros <- bills_data %>%
+  filter(n_cosponsor > 0) %>%
+  group_by(year) %>%
+  summarise(avg_cosponsors_no_zeros = mean(n_cosponsor, na.rm = TRUE))
+
+# Merge the two data frames by year
+combined_avg_cosponsors <- avg_cosponsors_per_year %>%
+  left_join(avg_cosponsors_per_year_no_zeros, by = "year")
+
+# Plot both lines on the same graph
+ggplot(combined_avg_cosponsors, aes(x = year)) +
+  geom_line(aes(y = avg_cosponsors, color = "Including Zero Cosponsors"), size = 1.2) +
+  geom_line(aes(y = avg_cosponsors_no_zeros, color = "Excluding Zero Cosponsors"), size = 1.2) +
+  geom_point(aes(y = avg_cosponsors, color = "Including Zero Cosponsors"), size = 3) +
+  geom_point(aes(y = avg_cosponsors_no_zeros, color = "Excluding Zero Cosponsors"), size = 3) +
+  labs(
+    title = "Average Number of Cosponsors Over Time",
+    x = "Year",
+    y = "Average Number of Cosponsors",
+    color = "Legend"
+  ) +
+  scale_color_manual(values = c("Including Zero Cosponsors" = "#890089", "Excluding Zero Cosponsors" = "#108F10")) +
+  theme_minimal()
+```
+
+```{r graphs3, echo=FALSE, message=FALSE, warning=FALSE}
+
+# Calculate the average number of cosponsors over time (including zeros)
+avg_cosponsors_per_year <- bills_data %>%
+  group_by(year) %>%
+  summarise(avg_cosponsors = median(n_cosponsor, na.rm = TRUE))
+
+# Calculate the average number of cosponsors over time (excluding zeros)
+avg_cosponsors_per_year_no_zeros <- bills_data %>%
+  filter(n_cosponsor > 0) %>%
+  group_by(year) %>%
+  summarise(avg_cosponsors_no_zeros = median(n_cosponsor, na.rm = TRUE))
+
+# Merge the two data frames by year
+combined_avg_cosponsors <- avg_cosponsors_per_year %>%
+  left_join(avg_cosponsors_per_year_no_zeros, by = "year")
+
+# Plot both lines on the same graph
+ggplot(combined_avg_cosponsors, aes(x = year)) +
+  geom_line(aes(y = avg_cosponsors, color = "Including Zero Cosponsors"), size = 1.2) +
+  geom_line(aes(y = avg_cosponsors_no_zeros, color = "Excluding Zero Cosponsors"), size = 1.2) +
+  geom_point(aes(y = avg_cosponsors, color = "Including Zero Cosponsors"), size = 3) +
+  geom_point(aes(y = avg_cosponsors_no_zeros, color = "Excluding Zero Cosponsors"), size = 3) +
+  labs(
+    title = "Median Number of Cosponsors Over Time",
+    x = "Year",
+    y = "Average Number of Cosponsors",
+    color = "Legend"
+  ) +
+  scale_color_manual(values = c("Including Zero Cosponsors" = "#890089", "Excluding Zero Cosponsors" = "#108F10")) +
+  theme_minimal()
+```
+# Determinants of Cosponsorship
+
+```{r regs1, echo=FALSE, message=FALSE, warning=FALSE}
+# Step 3 - Determinants of cosponsorship using OLS
+
+# Define models
+model1 <- lm(n_cosponsor ~ sponsor_party + factor(sponsor_state) + factor(congress_id), data = bills_data)
+model2 <- lm(n_cosponsor ~ sponsor_party + majority + factor(sponsor_state) + factor(congress_id), data = bills_data)
+model3 <- lm(n_cosponsor ~ sponsor_party + factor(sponsor_region) + factor(congress_id), data = bills_data)
+model4 <- lm(n_cosponsor ~ sponsor_party + majority + factor(sponsor_region) + factor(congress_id), data = bills_data)
+
+# Define custom labels for fixed effects
+fixed_effects_labels <- list(
+  "Fixed Effects: Sponsor's State" = c("Yes", "Yes", "No", "No"),
+  "Fixed Effects: Sponsor's Region" = c("No", "No", "Yes", "Yes"),
+  "Fixed Effects: Congress Year" = c("Yes", "Yes", "Yes", "Yes")
+)
+
+# Create a table with Stargazer
+stargazer(model1, model2, model3, model4,
+          type = "text",  # Change to "html" or "latex" if needed
+          title = "Regression Results",
+          covariate.labels = c("Sponsor's Party", "Majority"),
+          add.lines = list(
+            c("Fixed Effects: Sponsor's State", fixed_effects_labels[["Fixed Effects: Sponsor's State"]]),
+            c("Fixed Effects: Sponsor's Region", fixed_effects_labels[["Fixed Effects: Sponsor's Region"]]),
+            c("Fixed Effects: Congress Year", fixed_effects_labels[["Fixed Effects: Congress Year"]])
+          ),
+          omit = c("factor(sponsor_state)*", "factor(sponsor_region)*", "factor(congress_id)*"),  # Omit fixed effects
+          omit.stat = c("f", "ser", "ll", "rsq"),  # Omit statistics you don't need
+          star.cutoffs = c(0.05, 0.01, 0.001),  # Significance levels
+          dep.var.labels = "N. Cosponsors",
+          style = "default")
+```
+
+```{r regs2, echo=FALSE, message=FALSE, warning=FALSE}
+
+# Define OLS models
+ols_model1 <- lm(is_passed ~ n_cosponsor + sponsor_party + majority + factor(sponsor_state) + factor(congress_id), data = bills_data)
+ols_model2 <- lm(is_passed ~ n_cosponsor + same_party_state + sponsor_party + majority + factor(sponsor_state) + factor(congress_id), data = bills_data)
+ols_model3 <- lm(is_law ~ n_cosponsor + factor(sponsor_state) + sponsor_party + majority + factor(congress_id), data = bills_data)
+ols_model4 <- lm(is_law ~ n_cosponsor + same_party_state + sponsor_party + majority + factor(sponsor_state) + factor(congress_id), data = bills_data)
+
+# Define custom labels for fixed effects
+fixed_effects_labels_ols <- list(
+  "Fixed Effects: Sponsor's State" = c("Yes", "Yes", "Yes", "Yes"),
+  "Fixed Effects: Congress Year" = c("Yes", "Yes", "Yes", "Yes")
+)
+
+# Create OLS table with Stargazer
+stargazer(ols_model1, ols_model2, ols_model3, ols_model4,
+          type = "text",  # Change to "html" or "latex" if needed
+          title = "Regression Results (LPM)",
+          covariate.labels = c("Num Cosponsor", "Same Party-State", "Sponsor's Party", "Majority"),
+          add.lines = list(
+            c("Fixed Effects: Sponsor's State", fixed_effects_labels_ols[["Fixed Effects: Sponsor's State"]]),
+            c("Fixed Effects: Congress Year", fixed_effects_labels_ols[["Fixed Effects: Congress Year"]])
+          ),
+          omit = c("factor(sponsor_state)*", "factor(congress_id)*"),  # Omit fixed effects
+          omit.stat = c("f", "ser", "ll", "rsq"),  # Omit statistics you don't need
+          dep.var.labels = c("Prob(Passed House)", "Prob(Law)"),
+          star.cutoffs = c(0.05, 0.01, 0.001),  # Significance levels
+          style = "default")
+```
+
+```{r regs3, echo=FALSE, message=FALSE, warning=FALSE}
+
+# Define Probit models
+probit_model1 <- glm(is_passed ~ n_cosponsor + sponsor_party + majority + factor(sponsor_state) + factor(congress_id), family = binomial(link = "probit"), data = bills_data)
+probit_model2 <- glm(is_passed ~ n_cosponsor + same_party_state + sponsor_party + majority + factor(sponsor_state) + factor(congress_id), family = binomial(link = "probit"), data = bills_data)
+probit_model3 <- glm(is_law ~ n_cosponsor + factor(sponsor_state) + sponsor_party + majority + factor(congress_id), family = binomial(link = "probit"), data = bills_data)
+probit_model4 <- glm(is_law ~ n_cosponsor + same_party_state + sponsor_party + majority + factor(sponsor_state) + factor(congress_id), family = binomial(link = "probit"), data = bills_data)
+
+
+# Define custom labels for fixed effects
+fixed_effects_labels_ols <- list(
+  "Fixed Effects: Sponsor's State" = c("Yes", "Yes", "Yes", "Yes"),
+  "Fixed Effects: Congress Year" = c("Yes", "Yes", "Yes", "Yes")
+)
+
+# Create OLS table with Stargazer
+stargazer(probit_model1, probit_model2, probit_model3, probit_model4,
+          type = "text",  # Change to "html" or "latex" if needed
+          title = "Regression Results (Probit)",
+          covariate.labels = c("Num Cosponsor", "Same Party-State", "Sponsor's Party", "Majority"),
+          add.lines = list(
+            c("Fixed Effects: Sponsor's State", fixed_effects_labels_ols[["Fixed Effects: Sponsor's State"]]),
+            c("Fixed Effects: Congress Year", fixed_effects_labels_ols[["Fixed Effects: Congress Year"]])
+          ),
+          omit = c("factor(sponsor_state)*", "factor(congress_id)*"),  # Omit fixed effects
+          omit.stat = c("f", "ser", "ll", "rsq"),  # Omit statistics you don't need
+          dep.var.labels = c("Prob(Passed House)", "Prob(Law)"),
+          star.cutoffs = c(0.05, 0.01, 0.001),  # Significance levels
+          style = "default")
+```

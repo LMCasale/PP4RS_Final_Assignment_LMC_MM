@@ -1,0 +1,19 @@
+name: r-env
+channels:
+  - conda-forge
+dependencies:
+  - r-base
+  - r-dplyr
+  - r-ggplot2
+  - r-lmtest
+  - r-ivreg
+  - r-knitr
+  - r-kableextra
+  - r-tidyr
+  - r-sf
+  - r-rnaturalearth
+  - r-rnaturalearthdata
+  - r-sandwich
+  - r-stargazer
+  - r-rmarkdown
+  - r-devtools

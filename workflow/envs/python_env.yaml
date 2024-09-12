@@ -1,0 +1,11 @@
+name: python-env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.9
+  - pandas
+  - tqdm
+  - selenium
+  - pip
+  - pip:
+      - webdriver-manager
