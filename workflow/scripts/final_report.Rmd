@@ -26,6 +26,7 @@ library(rmarkdown)
 library(sandwich)  
 library(lmtest)    
 library(devtools)
+library(stats)
 ```
 
 
@@ -37,7 +38,6 @@ For each bill, we collect the ID of the Congress they were introduced, some bill
 
 ```{r dataprep, echo=FALSE, message=FALSE, warning=FALSE}
 
-#input_file <- file.path(dirname(getwd()), "data", snakemake@input[[1]])
 input_file <- file.path(dirname(getwd()), "data", "bills_data_final.csv")
 
 ## Appending all files

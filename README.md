@@ -62,9 +62,10 @@ conda activate snakemake
 snakemake --cores all --use-conda --conda-frontend conda
 ```
 
-**CAVEAT:** Reproducing the whole scrape would take too much time (i.e. days), therefore the ```.py``` checks that the files are present and complete (as in this case) and only combines them. If you want to check that the scraping works, you can either remove random rows from one of the ```.csv``` or delete a whole file.
+**CAVEAT:** Reproducing the whole scrape would take too much time (i.e. days), therefore the ```.py``` checks that the files are present and complete (as in this case) and only combines them. However, it will still open 5 webpages to check the total number of entries coincides with the ```.csv``` of each congress scraped, so the process may still take a while. 
+If you want to check that the scraping works, you can either remove random rows from one of the ```.csv``` or delete a whole file.
 
 ## Dependencies
 
-Both the ```.py``` and the ```.Rmd``` file that the ```snakemake``` will run without the need of further ado. Part of the automation, indeed, uses the two ```.yaml``` files in the ```workflow\envs``` folder to install all the modules/packages needed.
+Both the ```.py``` and the ```.Rmd``` file that the ```snakemake``` will run without the need of further ado. Part of the automation, indeed, uses the two ```.yaml``` files in the ```workflow\envs``` folder to install all the modules/packages needed. This process may take a while.
 

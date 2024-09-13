@@ -3,6 +3,7 @@ channels:
   - conda-forge
 dependencies:
   - r-base
+  - r-stats
   - r-dplyr
   - r-ggplot2
   - r-lmtest
