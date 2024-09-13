@@ -14,10 +14,11 @@ rule generate_report:
     conda:
         "envs/r_env.yaml"
     input:
-        "workflow/scripts/final_report.Rmd",
+        "workflow/data/bills_data_final.csv",
+        "workflow/scripts/final_report.Rmd"
     output:
         "final_report.html"
     shell:
         """
-        Rscript -e "rmarkdown::render('{input}', output_file=file.path(dirname(dirname(getwd())), '{output}'))"
+        Rscript -e "rmarkdown::render('{input[1]}', output_file=file.path(dirname(dirname(getwd())), '{output}'))"
         """

@@ -23,8 +23,9 @@ library(rnaturalearthdata)
 library(sandwich)
 library(stargazer)
 library(rmarkdown)
-library(sandwich)  # For robust standard errors
-library(lmtest)    # For coeftest function
+library(sandwich)  
+library(lmtest)    
+library(devtools)
 ```
 
 
@@ -36,9 +37,8 @@ For each bill, we collect the ID of the Congress they were introduced, some bill
 
 ```{r dataprep, echo=FALSE, message=FALSE, warning=FALSE}
 
-#input_file <- file.path(dirname(getwd()), "data", snakemake@input[[2]])
+#input_file <- file.path(dirname(getwd()), "data", snakemake@input[[1]])
 input_file <- file.path(dirname(getwd()), "data", "bills_data_final.csv")
-output_file <- file.path(dirname(getwd()), "results", "final_report.html")
 
 ## Appending all files
 bills_data <- read.csv(input_file)
