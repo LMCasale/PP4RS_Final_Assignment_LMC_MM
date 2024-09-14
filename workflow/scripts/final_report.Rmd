@@ -1,5 +1,5 @@
 ---
-title: "PPRS Report - *Congress Bills Cosponsorship*"
+title: "PP4RS Report - *Congress Bills Cosponsorship*"
 author: "Lorenzo Maria Casale & Matteo Machiorlatti"
 date: "15/09/2024"
 output: html_document
