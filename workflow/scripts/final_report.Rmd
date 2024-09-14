@@ -1,5 +1,5 @@
 ---
-title: "Final Report - Analyzing Cosponsorship"
+title: "PPRS Report - *Congress Bills Cosponsorship*"
 author: "Lorenzo Maria Casale & Matteo Machiorlatti"
 date: "15/09/2024"
 output: html_document
@@ -30,11 +30,14 @@ library(stats)
 ```
 
 
-In this research report we quickly show the determinants of the cosponsorship at bills level.
+This research report examines the determinants of cosponsorship at the bill level within the United States House of Representatives during the 2010s.
 
-We firstly scraped the data related to the bills presented to the House of Congress in the 2010s.
+We collected data on bills presented to the House of Representatives throughout the 2010s. The **data collection** process was automated through the scraping of the [official website](https://www.congress.gov/) of the Congress. For each bill, we gathered the following information:
 
-For each bill, we collect the ID of the Congress they were introduced, some bill-specific information, (i.e. the bill's url, the title of the proposal, the committee interested by the bill - e.g. Energy or Housing - and the status - e.g. Passed House, or Law), the sponsor, namely the person who introduced the bill, her party, her state of election, as well as the district of election and, then, we also collected information on cosponsors, namely who publicly support the law introduced, and apart from gathering the number of co-sponsors, we also observe how many of those are sharing the party affiliation and/or the state of origin. 
+- **Congress Session ID:** Identifying the specific session in which the bill was introduced.
+- **Bill-Specific Information:** The bill's URL, title, the committee it was assigned to (e.g., Energy or Housing), and its status (e.g., Introduced, Passed House, Became Law).
+- **Sponsor Details:** Information about the member who introduced the bill, including their party affiliation, state of election, and district.
+- **Cosponsor Information:** Data on members who cosponsored the bill. We collected the total number of cosponsors and noted how many shared the same party affiliation and/or state of origin as the sponsor.
 
 ```{r dataprep, echo=FALSE, message=FALSE, warning=FALSE}
 
@@ -83,7 +86,9 @@ bills_data$is_passed <- ifelse(bills_data$status %in% c("Became Law", "Became Pr
 
 # Descriptive Statistics
 
-Table 1 - Descriptive Statistics of Bill Data by Sponsor Party - shows the number of bills by sponsor's party. Because of the negligible number of bills sponsored by independents (I) and liberals (L), we will focus only on Democrats (D) and Republicans (R)
+### Overview by Sponsor's Party
+
+**Table 1** shows the number of bills by sponsor's party. Due to the negligible number of bills sponsored by independents (I) and liberals (L), we will from now on only focus on Democrats (D) and Republicans (R)
 
 ```{r datadescr0, echo=FALSE, message=FALSE, warning=FALSE}
 ## Descriptive statistics with number of bills by sponsor_party
@@ -112,13 +117,11 @@ bills_data <- bills_data %>%
   ))
 ```
 
+### Cosponsorship Patterns
 
-Table 2. - Descriptive Statistics of Bill Data - presents summary statistics for the average number of cosponsors (Avg. N. Cosponsor) across all bills, as well as the average number of cosponsors from the same party, same state, and those belonging to the same party and state.
+**Table 2** provides summary statistics on cosponsorship across all bills, highlighting the average number of cosponsors and the breakdown by party and state affiliations.
 
-We can immediately observe how among the co-sponsors the vast majority share, as natural, the party with the co-sponsor itself.
-
-On average 16 members play as bill's cosponsors, yet only 1.4 of those come from the same party and the same state, where the latter is clearly the limiting factor in the analysis.
-
+The majority of cosponsors share the same party as the bill's sponsor, which aligns with expected party solidarity. On the other hand, only a small fraction of cosponsors (about 1.5%) come from the same state and party as the sponsor, indicating that geographic factors are less influential than party affiliation in garnering support.
 
 ```{r datadescr1, echo=FALSE, message=FALSE, warning=FALSE}
 ## Descriptive statistics all sample
@@ -137,8 +140,9 @@ descriptive_stats %>%
   row_spec(0, bold = TRUE, extra_css = "border-bottom: 2px solid;")
 ```
 
+### Bill Status Distribution
 
-In Table 2 - Probability of Each Bill Status - we show that only a small portion becomes a law - slightly more than 3%. In general, however, 10% of the bills manages to surpass the first obstacle, namely the Congress' House. The rest is just merely introduced and no further steps are made.
+In **Table 3**, we show that only a small portion - slightly more than 3% - of proposed bills actually becomes law. It must however be noticed that about 10% of the bills manages to overcome the first obstacle, namely the Congress' House. The rest is just merely introduced and no further steps are taken.
 
 ```{r datadescr1b, echo=FALSE, message=FALSE, warning=FALSE}
 
@@ -158,9 +162,9 @@ status_probs %>%
   row_spec(0, bold = TRUE, extra_css = "border-bottom: 2px solid;")
 ```
 
-Down below, in Table 3 - Descriptive Statistics of Bill Data by Congress and Year - and Table 4 - Probability of Each Bill Status by Congress and Year - we replicate what we did in the 2 previous tables, but we show what happens when we split the data over congresses.
+### Analysis by Congress (i.e. time)
 
-In general, we observe that it appears that the ratio of law passed - i.e. those which either became or law or managed to pass the House vote - is the highest in Congress 115, despite the number of co-sponsor is slightly smaller than almost all the other congresses available.
+**Tables 4** and **5** replicate the analysis of Tables 2 and 3, but now splitting the data by congress (which in this case coincide with splitting by year).
 
 ```{r datadescr2, echo=FALSE, message=FALSE, warning=FALSE}
 
@@ -210,10 +214,11 @@ status_probs_wide %>%
                 full_width = FALSE)
 ```
 
+### Probability of Bills Becoming Law by Sponsor's Party
 
-Table 5 - Probability of Bills Becoming Law by Party and Congress - is definetely more interesting, as it shows the probability of a bill becoming a law split by party. It appears that when leading - in bold - Republicans managed to exert their power more than Democrats. We can see, indeed, the big difference both with respect to their counterpart within congress and with respect to when they were the opposing force. On the other hand, when Democrats were leading the House of Congress, there was not a clear difference with respect to when they were the trailing force.
+**Table 6** compares the probability of bills becoming law based on the sponsor's party and whether they were the majority in the House. 
 
-Because of the small  of Independents in 
+Overall, in the period we analyzed, Republicans had a much higher success rate in passing bills compared to Democrats. This may be at least partially explained by the Republicans being the majority party in most of the Congresses in our sample and this may have played a central role. The fact that Democrats led in the final Congress and still saw a low share of bills that passed may be due to persistence. It would be interesting to increase the lenght of our sample and check whether there was an inversion in the next Congresses. 
 
 ```{r datadescr4, echo=FALSE, message=FALSE, warning=FALSE}
 
@@ -240,8 +245,11 @@ prob_by_party_congress %>%
   row_spec(0, bold = TRUE, extra_css = "border-bottom: 2px solid;")
 ```
 
+### Geographic Variation in Legislative Success
 
-Here, in Figure 1 - Probability of Bills Becoming Law by State -, we show that, apart some peaks when Idaho and Mississippi representatives are proposing their bills, there are no clear differences among the states. This appears to be even truer when we compare states from the same Census Region. Each Census is recognizable because of each state's border. In yellow, there are the west states, in red the midwest, in green the south states, and finally in violet the north-east states.
+**Figure 1** illustrates the probability of bills becoming law by the sponsor's state, with states grouped by Census regions. Each Census is recognizable because of each state's border. In yellow, there are the west states, in red the midwest, in green the south states, and finally in violet the north-east states.
+
+From the map, no clear regional differences are easily identifiable - except for a couple of states with higher values such as Idaho and Mississippi. This would suggest that factors other than geographic location play a more substantial role.
 
 
 ```{r datadescr5, echo=FALSE, message=FALSE, warning=FALSE}
@@ -294,13 +302,13 @@ ggplot(data = state_map) +
         axis.ticks = element_blank())      # Remove axis ticks
 ```
 
-# Graphical Determinants of Cosporship
+# Graphical Analysis of Cosponsorship Determinants
 
-This section briefly describes how did cosponsorship vary over time.
+This section explores how cosponsorship patterns have evolved over time.
 
-From Figure 2 - Variation of Cosponsorship by Congress - we can observe that the values described above are derived by the frequent outliers observed in each of the congresses analyzed.
+### Variation of Cosponsorship by Congress
 
-Because the 5 boxplots, containing data from 25th to 75th percentile, are generally close to 0, in the following graphs we show how mean and median varies, both when excluding and including the bills with 0 cosponsors. Overall, as explained, in this setting, the median appears more informative than the average. Then, the effective number of co-sponsors is around 4.
+**Figure 2** displays boxplots of cosponsorship numbers across different Congress sessions. It clearly points to the existence of large outliers in the number of cosponsors and - hence - to the need to use medians instead of averages for summary statistics.
 
 ```{r graphs1, echo=FALSE, message=FALSE, warning=FALSE}
 # Define relative paths for input and output files
@@ -316,6 +324,7 @@ ggplot(bills_data, aes(x = as.factor(congress_id), y = n_cosponsor)) +
   theme_minimal()
 ```
 
+**Figures 3** and **4** show the mean and median number of cosponsors over time, both including and excluding bills with zero cosponsors.
 
 ```{r graphs2, echo=FALSE, message=FALSE, warning=FALSE}
 
@@ -383,7 +392,14 @@ ggplot(combined_avg_cosponsors, aes(x = year)) +
   scale_color_manual(values = c("Including Zero Cosponsors" = "#890089", "Excluding Zero Cosponsors" = "#108F10")) +
   theme_minimal()
 ```
-# Determinants of Cosponsorship
+
+# Regression analyses
+
+We finally conducted regression analyses - LPM and Probit - to identify factors influencing cosponsorship and legislative success. This part of the analysis is mostly to showcase how to run regressions and build tables in Rstudio through Snakemake automation, but it should not be considered as a rigorous investigation - as it is indeed flawed in many potential ways (first of all endogeneity, but also omitted variable bias, ...). 
+
+We will hence not discuss the results, but only present the tables themselves.
+
+**Table 7** uses a linear regression analysis (OLS) to investigate the determinants of cosponsorship.
 
 ```{r regs1, echo=FALSE, message=FALSE, warning=FALSE}
 # Step 3 - Determinants of cosponsorship using OLS
@@ -417,6 +433,8 @@ stargazer(model1, model2, model3, model4,
           dep.var.labels = "N. Cosponsors",
           style = "default")
 ```
+
+**Table 8** and **9** use - respectively - a linear regression analysis (OLS) and a Probit to assess how the number of cosponsors affect the probability of a bill to pass the House (columns 1 & 2) and to become law (3 and 4)
 
 ```{r regs2, echo=FALSE, message=FALSE, warning=FALSE}
 
@@ -478,3 +496,5 @@ stargazer(probit_model1, probit_model2, probit_model3, probit_model4,
           star.cutoffs = c(0.05, 0.01, 0.001),  # Significance levels
           style = "default")
 ```
+
+As a general and intuitive takeaway, the number of cosponsors seem to have a positive effect on the probability of a bill both passing the House and becoming law. However, as mentioned above, here there is - at least some - endogeneity at play. For instance, it is very likely that high quality bills have a larger number of cosponsors as well as a higher probability of success, and this may be what our results is capturing. The same applies to bills that are more "politically trendy" and expected from the public opinion.
